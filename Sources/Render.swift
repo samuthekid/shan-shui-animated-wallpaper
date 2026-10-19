@@ -20,6 +20,11 @@ enum K {
     static let maxSpeed = 60.0    // the top of the speed slider, points per second. The lead is made for this speed.
     static let farMaxHeight = 1000.0  // a far tile is at most about this many pixels high (far hills are soft)
     static let pixelScale = 1.0  // tile pixels per point (1 = 1x tiles, 2 = Retina). Tiles are stretched to the point size.
+    static let rebaseDistance = 20000.0  // points of travel (from the base) after which the layers start again near zero
+    static let panLength = 30000.0  // points that one pan animation covers before it ends
+    static let scratchSize = 1 << 20  // first size of the engine text buffer, in bytes
+    static let paperColor = CGColor(red: 0.96, green: 0.91, blue: 0.82, alpha: 1)  // the paper, until the first tile is there
+    static let fps60 = CAFrameRateRange(minimum: 60, maximum: 60, preferred: 60)  // pan and fade ask for 60 fps
     static let bitmapInfo = CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue  // BGRA
 }
 

@@ -45,13 +45,14 @@ final class Landscape {
         return win
     }
 
-    init(engine: Engine, id: Int, window: NSWindow, size: CGSize, scale: CGFloat, frame: CGRect, speed: Double, density: Double) {
+    init(engine: Engine, id: Int, window: NSWindow, scale: CGFloat, frame: CGRect, speed: Double, density: Double) {
         self.engine = engine
         self.id = id
         self.window = window
         self.screenFrame = frame
         self.backing = scale
         self.speed = speed
+        let size = frame.size
         let g = Geo(wPts: Double(size.width), hPts: Double(size.height), scale: Double(scale))
         geo = g
 
@@ -59,7 +60,7 @@ final class Landscape {
         view.wantsLayer = true
         window.contentView = view
         let root = view.layer!
-        root.backgroundColor = CGColor(red: 0.96, green: 0.91, blue: 0.82, alpha: 1)  // until the first tile is there
+        root.backgroundColor = K.paperColor
         for box in [paperBox, farBox, nearBox] {
             box.anchorPoint = .zero
             box.position = .zero
@@ -114,16 +115,16 @@ final class Landscape {
         b.origin.x = CGFloat(from)
         box.bounds = b
         guard running && rate > 0 else { return }
-        // The animation is 30000 points long. tick() restarts it (rebase) when the box has moved 20000 points from the
+        // The animation is K.panLength long. tick() restarts it (rebase) when the box has moved K.rebaseDistance from the
         // base, so at least 10000 points (166 s at the top speed) are left. A pause removes it.
-        let length = 30000.0
+        let length = K.panLength
         let a = CABasicAnimation(keyPath: "bounds.origin.x")
         a.fromValue = from
         a.toValue = from + length
         a.duration = length / rate
         a.beginTime = box.convertTime(now, from: nil)
         a.timingFunction = CAMediaTimingFunction(name: .linear)
-        a.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 60, preferred: 60)
+        a.preferredFrameRateRange = K.fps60
         box.add(a, forKey: "pan")
     }
 
@@ -172,7 +173,7 @@ final class Landscape {
     // Once per second: which tiles are wanted, drop old tiles, move the origin forward when it is far from zero.
     func tick() {
         guard running || !started else { return }  // before the window is shown, tiles are wanted too
-        if (currentU() - baseN) * geo.sPts > 20000 { rebase() }
+        if (currentU() - baseN) * geo.sPts > K.rebaseDistance { rebase() }
         let now = currentU()
         let w = geo.wUnits
         // Lead: leadSeconds of travel at the MAXIMUM speed, at least K.ahead tiles. It does not depend on the
@@ -180,12 +181,9 @@ final class Landscape {
         let speedU = K.maxSpeed / geo.sPts  // world units per second
         let leadN = max(K.ahead, Int((speedU * K.leadSeconds / K.tileW).rounded(.up)))
         let leadF = max(K.ahead, Int((speedU * K.parallax * K.leadSeconds / K.tileW).rounded(.up)))
-        let nearFrom = Int((now / K.tileW).rounded(.down))
-        let nearTo = Int(((now + w) / K.tileW).rounded(.down)) + leadN
-        let farFrom = Int((now * K.parallax / K.tileW).rounded(.down))
-        let farTo = Int(((now * K.parallax + w) / K.tileW).rounded(.down)) + leadF
-        rangeN = nearFrom...nearTo
-        rangeF = farFrom...farTo
+        let n = visibleTiles(from: now, width: w), f = visibleTiles(from: now * K.parallax, width: w)
+        rangeN = n.lowerBound...(n.upperBound + leadN)
+        rangeF = f.lowerBound...(f.upperBound + leadF)
         CATransaction.begin()
         CATransaction.setDisableActions(true)
         // Only tiles behind the view go. A tile ahead stays even if the lead gets shorter: it is drawn from chunks
@@ -211,7 +209,7 @@ final class Landscape {
 
     func paperX(_ j: Int) -> Double { (Double(j) * Double(K.paperW) - baseN) * geo.sPts }
 
-    // Float precision of the layers: after 20000 points of travel the tiles and the boxes start again near zero.
+    // Float precision of the layers: after K.rebaseDistance points of travel the tiles and the boxes start again near zero.
     // The picture does not change.
     func rebase() {
         let now = currentU()
@@ -253,7 +251,7 @@ final class Landscape {
             fade.fromValue = 0.0
             fade.toValue = 1.0
             fade.duration = 0.8
-            fade.preferredFrameRateRange = CAFrameRateRange(minimum: 60, maximum: 60, preferred: 60)
+            fade.preferredFrameRateRange = K.fps60
             layer.add(fade, forKey: "fade")
         }
         CATransaction.commit()

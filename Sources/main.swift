@@ -76,104 +76,12 @@ final class Wallpaper: NSObject, NSApplicationDelegate, NSMenuDelegate {
         item.menu?.insertItem(e, at: 0)
     }
 
-    func makeMenu() -> NSMenu {
-        let menu = NSMenu()
-        menu.delegate = self  // menuNeedsUpdate fills the Export Frame item (Export.swift)
-        menu.addItem(withTitle: "Pause", action: #selector(togglePause(_:)), keyEquivalent: "").target = self
-        menu.addItem(sliderItem("Speed", Settings.minSpeed, K.maxSpeed, Settings.speed, #selector(speedChanged(_:))))
-        menu.addItem(sliderItem("Density", Settings.minDensity, Settings.maxDensity, Settings.density, #selector(densityChanged(_:))))
-        menu.addItem(NSMenuItem.separator())
-        let export = menu.addItem(withTitle: "Export Frame", action: nil, keyEquivalent: "")
-        export.tag = Wallpaper.exportTag
-        export.isHidden = true
-        let more = NSMenu()
-        more.addItem(withTitle: "Apply App Background…", action: #selector(applyBackground), keyEquivalent: "").target = self
-        more.addItem(withTitle: "GitHub", action: #selector(showGitHub), keyEquivalent: "").target = self
-        more.addItem(withTitle: "Privacy Policy", action: #selector(showPrivacy), keyEquivalent: "").target = self
-        more.addItem(withTitle: "About Shan Shui Animated Wallpaper", action: #selector(showAbout), keyEquivalent: "").target = self
-        menu.addItem(withTitle: "More", action: nil, keyEquivalent: "").submenu = more
-        menu.addItem(NSMenuItem.separator())
-        menu.addItem(withTitle: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q").target = NSApp
-        return menu
-    }
-
     // Pause stops the pan, the timer and the engine work of every screen (Landscape.setRunning). The frame stays.
     // Resume goes on from the same place. A new screen while paused is drawn once, then stops.
     @objc func togglePause(_ sender: NSMenuItem) {
         paused.toggle()
         sender.title = paused ? "Resume" : "Pause"
         landscapes.values.forEach { $0.paused = paused; $0.visibilityChanged() }
-    }
-
-    // The only place where the app changes the desktop picture, and only after the user presses This Space.
-    @objc func applyBackground() {
-        NSApp.activate(ignoringOtherApps: true)
-        func say(_ title: String, _ text: String) {
-            let a = NSAlert()
-            a.messageText = title
-            a.informativeText = text
-            a.runModal()
-        }
-        guard let url = Bundle.main.url(forResource: "background-4k", withExtension: "jpg") else {
-            return say("The picture is missing.", "This copy of the app has no background picture.")
-        }
-        let alert = NSAlert()
-        alert.messageText = "Match Mission Control?"
-        alert.informativeText = """
-            Mission Control and the Spaces bar can't show the moving landscape. They show your desktop picture instead.
-
-            Tap "This Space" to set a plain paper picture that matches the landscape. It only changes this Space. \
-            To use it everywhere, choose "Show on all Spaces" in System Settings > Wallpaper.
-            """
-        alert.addButton(withTitle: "Cancel")  // the first button is the default
-        alert.addButton(withTitle: "This Space")
-        guard alert.runModal() == .alertSecondButtonReturn else { return }
-        do {
-            for s in NSScreen.screens { try NSWorkspace.shared.setDesktopImageURL(url, for: s, options: [:]) }
-        } catch {
-            say("The desktop picture could not be changed.", error.localizedDescription)
-        }
-    }
-
-    @objc func showPrivacy() {
-        NSWorkspace.shared.open(URL(string: "https://samuapps.dev/shan-shui/privacy.html")!)
-    }
-
-    @objc func showGitHub() {
-        NSWorkspace.shared.open(URL(string: "https://github.com/samuthekid/shan-shui-animated-wallpaper")!)
-    }
-
-    @objc func showAbout() {
-        NSApp.activate(ignoringOtherApps: true)
-        let credits = """
-            Landscape generator: shan-shui-inf by Lingdong Huang, MIT License.
-            https://github.com/LingDong-/shan-shui-inf
-
-            """
-        let license = Bundle.main.url(forResource: "LICENSE-shan-shui-inf", withExtension: nil)
-            .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
-        let text = NSMutableAttributedString(
-            string: credits + license, attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.labelColor])
-        text.addAttribute(.link, value: "https://github.com/LingDong-/shan-shui-inf",
-                          range: (text.string as NSString).range(of: "https://github.com/LingDong-/shan-shui-inf"))
-        NSApp.orderFrontStandardAboutPanel(options: [.credits: text])
-    }
-
-    func sliderItem(_ title: String, _ lo: Double, _ hi: Double, _ value: Double, _ action: Selector) -> NSMenuItem {
-        let view = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 44))
-        let label = NSTextField(labelWithString: title)
-        label.frame = NSRect(x: 14, y: 24, width: 172, height: 16)
-        let slider = NSSlider(value: value, minValue: lo, maxValue: hi, target: self, action: action)
-        slider.frame = NSRect(x: 14, y: 4, width: 172, height: 20)
-        // The menu is as wide as its longest item. The row and the slider follow that width.
-        view.autoresizingMask = .width
-        label.autoresizingMask = .width
-        slider.autoresizingMask = .width
-        view.addSubview(label)
-        view.addSubview(slider)
-        let item = NSMenuItem()
-        item.view = view
-        return item
     }
 
     @objc func speedChanged(_ s: NSSlider) { applySpeed(s.doubleValue) }
@@ -239,8 +147,9 @@ final class Wallpaper: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let win = Landscape.makeWindow(frame: screen.frame, level: NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow))),
                                        wallpaper: true)
         nextWorld += 1
-        let land = Landscape(engine: engine, id: nextWorld, window: win, size: screen.frame.size, scale: screen.backingScaleFactor,
+        let land = Landscape(engine: engine, id: nextWorld, window: win, scale: screen.backingScaleFactor,
                              frame: screen.frame, speed: Settings.speed, density: Settings.density)
+        land.paused = paused  // a screen that comes while paused starts stopped (checkReady calls visibilityChanged)
         win.setFrame(screen.frame, display: false)
         return land
     }

@@ -49,7 +49,9 @@ final class World {
     var broken = false    // JavaScript gave no answer: no more work
     var u = 0.0           // where the view is (near units), for the lead
     var failures = 0, blockedUntil = 0.0  // a tile that fails is tried again later
+    #if !STORE
     var stats = Stats()  // --debug (Debug.swift)
+    #endif
 
     init(id: Int, geo: Geo, density: Double, deliver: @escaping @MainActor (Bool, Int, IOSurface) -> Void) {
         self.id = id
@@ -84,9 +86,11 @@ final class Engine: @unchecked Sendable {
     let parser = Parser()
     // The text of a slice is copied from JavaScript into this buffer as UTF-8 and parsed from there. No String and no
     // Array copies of megabytes. It grows when a slice needs more (it never shrinks).
-    var scratch = UnsafeMutablePointer<CChar>.allocate(capacity: 1 << 20)
-    var scratchSize = 1 << 20
+    var scratch = UnsafeMutablePointer<CChar>.allocate(capacity: K.scratchSize)
+    var scratchSize = K.scratchSize
+    #if !STORE
     var lastServed = -1, lastGenMs = 0  // --debug
+    #endif
 
     // The generator did not start: log it and show it in the menu (Wallpaper listens).
     func fail(_ reason: String) {
@@ -225,7 +229,9 @@ final class Engine: @unchecked Sendable {
     }
 
     func generate(_ w: World, _ lane: Lane) {
+        #if !STORE
         let t = CACurrentMediaTime()
+        #endif
         let n = readText(ss?.invokeMethod(lane.near ? "nearSlice" : "farNext", withArguments: [w.id]))
         let bytes = UnsafeBufferPointer(start: UnsafeRawPointer(scratch).assumingMemoryBound(to: UInt8.self), count: n)
         let parsed = parser.parse(bytes)
@@ -239,13 +245,13 @@ final class Engine: @unchecked Sendable {
             let l = c.near ? w.near : w.far
             l.chunks.insert(c, at: l.chunks.firstIndex { $0.y > c.y } ?? l.chunks.count)
         }
+        #if !STORE
         let dt = CACurrentMediaTime() - t
         lastServed = w.id
         lastGenMs = Int(dt * 1000)
-        if lane.near {
-            w.stats.addGen(dt)
-            collect()
-        }
+        if lane.near { w.stats.addGen(dt) }
+        #endif
+        if lane.near { collect() }
     }
 
     // Upstream builders make a lot of garbage. Free pages from the last round go back to the system first
@@ -257,9 +263,9 @@ final class Engine: @unchecked Sendable {
 
     // The visible tiles of a world drawn again with `geo` (the export), at the view position u. The caller frees them.
     func exportTiles(id: Int, u: Double, geo: Geo) -> FrameCapture {
-        func tiles(_ lane: Lane, from: Double) -> [(k: Int, surface: IOSurface)] {
-            var r: [(k: Int, surface: IOSurface)] = []
-            for k in Int((from / K.tileW).rounded(.down))...Int(((from + geo.wUnits) / K.tileW).rounded(.down)) where lane.done.contains(k) {
+        func tiles(_ lane: Lane, from: Double) -> TileList {
+            var r: TileList = []
+            for k in visibleTiles(from: from, width: geo.wUnits) where lane.done.contains(k) {
                 if let s = rasterize(near: lane.near, k: k, chunks: lane.chunks, geo: geo) { r.append((k, s)) }
             }
             return r
@@ -269,10 +275,13 @@ final class Engine: @unchecked Sendable {
     }
 
     func render(_ w: World, _ lane: Lane, _ k: Int) {
+        #if !STORE
         let t = CACurrentMediaTime()
+        #endif
         let surface = rasterize(near: lane.near, k: k, chunks: lane.chunks, geo: w.geo)
-        let dt = CACurrentMediaTime() - t
-        w.stats.addRaster(dt)
+        #if !STORE
+        w.stats.addRaster(CACurrentMediaTime() - t)
+        #endif
         if let s = surface {
             lane.done.insert(k)
             w.failures = 0

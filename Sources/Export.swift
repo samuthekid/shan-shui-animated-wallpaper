@@ -9,26 +9,31 @@ import UniformTypeIdentifiers
 
 // Everything that composeFrame needs, taken on the main thread at one moment. The surfaces are shared memory:
 // holding them copies nothing.
+typealias TileList = [(k: Int, surface: IOSurface)]
+
 struct FrameCapture {
     let geo: Geo
     let u: Double  // near scroll position (world units) at that moment. Far and paper follow from it.
-    let near: [(k: Int, surface: IOSurface)]
-    let far: [(k: Int, surface: IOSurface)]
+    let near: TileList
+    let far: TileList
 }
 
 extension Landscape {
     // The tiles that cover the visible range, and the pan offset, at one `now`. Main thread. The pan keeps running.
     func captureFrame() -> FrameCapture {
         let u = currentU(CACurrentMediaTime())
-        func visible(_ tiles: [Int: CALayer], from: Double) -> [(k: Int, surface: IOSurface)] {
-            var r: [(k: Int, surface: IOSurface)] = []
-            for k in Int((from / K.tileW).rounded(.down))...Int(((from + geo.wUnits) / K.tileW).rounded(.down)) {
+        func visible(_ tiles: [Int: CALayer], from: Double) -> TileList {
+            var r: TileList = []
+            for k in visibleTiles(from: from, width: geo.wUnits) {
                 if let s = tiles[k]?.contents as? IOSurface { r.append((k, s)) }
             }
             return r
         }
         return FrameCapture(geo: geo, u: u, near: visible(nearTiles, from: u), far: visible(farTiles, from: u * K.parallax))
     }
+
+    // The geometry of the PNG export: the tiles are drawn again at the backing scale.
+    var exportGeo: Geo { Geo(wPts: geo.wPts, hPts: geo.hPts, scale: geo.scale, pixelScale: geo.scale) }
 }
 
 // Draws one tile surface into c. The pixels are read while the surface is locked.
@@ -123,8 +128,7 @@ extension Wallpaper {
         // The state is taken now, on the main thread. The panning goes on while the PNG is made.
         // The tiles are drawn again at the backing scale (the live tiles have K.pixelScale): temporary, freed after the PNG.
         let u = land.currentU(CACurrentMediaTime())
-        let g = land.geo, engine = land.engine, id = land.id
-        let geo = Geo(wPts: g.wPts, hPts: g.hPts, scale: g.scale, pixelScale: g.scale)
+        let geo = land.exportGeo, engine = land.engine, id = land.id
         DispatchQueue.global(qos: .utility).async {
             let capture = engine.q.sync { engine.exportTiles(id: id, u: u, geo: geo) }
             let error = writePNG(capture, to: url)

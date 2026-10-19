@@ -30,16 +30,11 @@ enum Opt {
     static let still: String? = Opt.value("--still")  // no window: one 3840x2160 JPEG (the bundled background)
 }
 
-#endif
-
-#if !STORE
 // --sweep: the values that are applied every 5 s, in turn.
 enum Sweep {
     static let speeds = [60.0, 2, 45, 15, 60]
     static let densities = [2.0, 0.2, 1.5, 1, 2]
 }
-
-#endif
 
 // The timing counters of one world (World.stats). The engine only calls addGen and addRaster.
 struct Stats {
@@ -66,7 +61,6 @@ struct Stats {
     }
 }
 
-#if !STORE
 extension Engine {
     // One line for a screen. Counters start again after each call.
     func stats(_ id: Int, _ done: @escaping @MainActor (String) -> Void) {
@@ -153,7 +147,7 @@ extension Wallpaper {
             let win = Landscape.makeWindow(frame: rect, level: .floating, wallpaper: false)
             nextWorld += 1
             // the landscape shows the window when it is ready
-            landscapes[UInt32(i)] = Landscape(engine: engine, id: nextWorld, window: win, size: size, scale: screen.backingScaleFactor,
+            landscapes[UInt32(i)] = Landscape(engine: engine, id: nextWorld, window: win, scale: screen.backingScaleFactor,
                                               frame: rect, speed: Settings.speed, density: Settings.density)
         }
     }

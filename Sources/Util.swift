@@ -15,3 +15,8 @@ func prune(_ tiles: inout [Int: CALayer], _ drop: (Int) -> Bool) {
         tiles[k] = nil
     }
 }
+
+// The tiles that a view covers: from a scroll position (world units) to `width` units further.
+func visibleTiles(from: Double, width: Double) -> ClosedRange<Int> {
+    Int((from / K.tileW).rounded(.down))...Int(((from + width) / K.tileW).rounded(.down))
+}
