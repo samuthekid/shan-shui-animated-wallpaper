@@ -1,0 +1,72 @@
+# Generates ShanShui.xcodeproj (git-ignored): run `xcodegen generate`.
+# Release = Mac App Store build (-D STORE, no debug code). Debug = dev build.
+# Needs the submodule: git submodule update --init (for vendor/shan-shui-inf/index.html).
+name: ShanShui
+
+options:
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    MARKETING_VERSION: "1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: "967Y25MTGD"
+  configs:
+    Release:
+      ARCHS: "arm64 x86_64"
+      ONLY_ACTIVE_ARCH: NO
+
+targets:
+  ShanShui:
+    type: application
+    platform: macOS
+
+    sources:
+      - path: Sources
+        excludes:
+          - generator.js
+      - path: Sources/generator.js
+        buildPhase: resources
+      - path: vendor/shan-shui-inf/index.html
+        buildPhase: resources
+      - path: PrivacyInfo.xcprivacy
+        buildPhase: resources
+      - path: Resources/ShanShui.icns
+        buildPhase: resources
+      - path: Resources/background-4k.jpg
+        buildPhase: resources
+      - path: Resources/LICENSE-shan-shui-inf   # copy of vendor/shan-shui-inf/LICENSE (Menu.swift looks it up by this name)
+        buildPhase: resources
+
+    settings:
+      base:
+        PRODUCT_NAME: ShanShui
+        PRODUCT_BUNDLE_IDENTIFIER: com.samuapps.shanshui
+        CODE_SIGN_ENTITLEMENTS: ShanShui.entitlements
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
+      configs:
+        Release:
+          SWIFT_ACTIVE_COMPILATION_CONDITIONS: STORE
+
+    info:
+      path: build/xcode/Info.plist
+      properties:
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleName: Shan Shui Animated Wallpaper
+        CFBundleDisplayName: Shan Shui Animated Wallpaper
+        CFBundlePackageType: APPL
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleIconFile: ShanShui
+        LSApplicationCategoryType: public.app-category.graphics-design
+        NSHumanReadableCopyright: "Copyright © 2026 Samuel"
+        ITSAppUsesNonExemptEncryption: false
+        LSUIElement: true
+        NSHighResolutionCapable: true
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)

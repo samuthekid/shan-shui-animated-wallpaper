@@ -1,27 +1,11 @@
 #!/bin/bash
-# ./build.sh        dev build: ad-hoc signature, debug flags kept.
-# ./build.sh store  Mac App Store build: no debug code, sandbox, signed .pkg. Needs:
-#   SIGN_ID       "Apple Distribution: NAME (TEAMID)"           (see: security find-identity -v -p codesigning)
-#   INSTALLER_ID  "3rd Party Mac Developer Installer: NAME (TEAMID)" or the Mac Installer Distribution name
-#   PROFILE       path to the .provisionprofile
-# Put the real team ID in ShanShui.entitlements first (TEAMID_HERE).
+# Dev build only: ad-hoc signature, debug flags kept. Run: ./build.sh, then open build/ShanShui.app
+# The Mac App Store release is not built here. Use Xcode: xcodegen generate, open ShanShui.xcodeproj,
+# Product > Archive, Distribute App (see project.yml).
 set -euo pipefail
 cd "$(dirname "$0")"
 
-mode=${1:-dev}
-[ "$mode" = dev ] || [ "$mode" = store ] || { echo "usage: $0 [store]" >&2; exit 2; }
-
-if [ "$mode" = store ]; then
-  : "${SIGN_ID:?set SIGN_ID}" "${INSTALLER_ID:?set INSTALLER_ID}" "${PROFILE:?set PROFILE}"
-  [ -f "$PROFILE" ] || { echo "PROFILE not found: $PROFILE" >&2; exit 1; }
-  [ -f Resources/ShanShui.icns ] || { echo "Resources/ShanShui.icns is missing (required for store)" >&2; exit 1; }
-  [ -f Resources/background-4k.jpg ] || { echo "Resources/background-4k.jpg is missing (needed by Apply App Background)" >&2; exit 1; }
-  ! grep -q TEAMID_HERE ShanShui.entitlements || { echo "Set the team ID in ShanShui.entitlements" >&2; exit 1; }
-  flags=(-D STORE)
-else
-  flags=()
-fi
-
+flags=()
 # Build in a temporary folder. The old app stays if anything fails.
 app=build/ShanShui.app
 tmp=build/ShanShui.app.tmp
@@ -42,29 +26,6 @@ cp vendor/shan-shui-inf/LICENSE "$tmp/Contents/Resources/LICENSE-shan-shui-inf"
 [ -f Resources/ShanShui.icns ] && cp Resources/ShanShui.icns "$tmp/Contents/Resources/"
 [ -f Resources/background-4k.jpg ] && cp Resources/background-4k.jpg "$tmp/Contents/Resources/"  # still picture for Apply App Background; made with: ShanShui --still FILE.jpg (dev build, no window)
 
-# Build-metadata keys (store only). Values come from the installed Xcode.
-# Same key set and value format as Xcode-built Mac apps on this machine (ColorSlurp, AppCleaner).
-# TODO verify: App Store Connect accepts exactly this set (only the validate/upload step proves it).
-extra=""
-if [ "$mode" = store ]; then
-  xcode=$(xcodebuild -version | awk '/^Xcode/ {split($2, v, "."); printf "%02d%d%d", v[1], v[2], v[3]}')
-  xcodebuild_build=$(xcodebuild -version | awk '/^Build version/ {print $3}')
-  sdk=$(xcrun --show-sdk-version)
-  sdkbuild=$(xcrun --show-sdk-build-version)
-  # Checked against real Xcode-built apps: DTCompiler value, DTPlatformVersion = SDK version, DTPlatformBuild = DTSDKBuild.
-  extra="
-  <key>DTCompiler</key><string>com.apple.compilers.llvm.clang.1_0</string>
-  <key>DTPlatformBuild</key><string>$sdkbuild</string>
-  <key>DTPlatformName</key><string>macosx</string>
-  <key>DTPlatformVersion</key><string>$sdk</string>
-  <key>DTSDKBuild</key><string>$sdkbuild</string>
-  <key>DTSDKName</key><string>macosx$sdk</string>
-  <key>DTXcode</key><string>$xcode</string>
-  <key>DTXcodeBuild</key><string>$xcodebuild_build</string>
-  <key>BuildMachineOSBuild</key><string>$(sw_vers -buildVersion)</string>
-  <key>CFBundleSupportedPlatforms</key><array><string>MacOSX</string></array>"
-fi
-
 cat > "$tmp/Contents/Info.plist" <<EOT
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -83,28 +44,13 @@ cat > "$tmp/Contents/Info.plist" <<EOT
   <key>ITSAppUsesNonExemptEncryption</key><false/>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
-  <key>LSMinimumSystemVersion</key><string>14.0</string>$extra
+  <key>LSMinimumSystemVersion</key><string>14.0</string>
 </dict>
 </plist>
 EOT
 plutil -lint "$tmp/Contents/Info.plist" "$tmp/Contents/Resources/PrivacyInfo.xcprivacy"
 
-if [ "$mode" = store ]; then
-  # Profile path: Contents/embedded.provisionprofile (same place in Xcode-built apps). productbuild usage text: --component <app> <install-path>, for the Mac App Store.
-  # Hardened runtime is not required for the store, but real store apps carry it. Harmless.
-  cp "$PROFILE" "$tmp/Contents/embedded.provisionprofile"
-  codesign --force --options runtime --timestamp --entitlements ShanShui.entitlements -s "$SIGN_ID" "$tmp"
-  codesign --verify --deep --strict --verbose=2 "$tmp"
-else
-  codesign -s - --force "$tmp"
-fi
+codesign -s - --force "$tmp"
 rm -rf "$app"
 mv "$tmp" "$app"
-echo "Built $app ($mode)"
-
-if [ "$mode" = store ]; then
-  rm -f build/ShanShui.pkg
-  productbuild --component "$app" /Applications --sign "$INSTALLER_ID" build/ShanShui.pkg
-  pkgutil --check-signature build/ShanShui.pkg
-  echo "Built build/ShanShui.pkg"
-fi
+echo "Built $app (dev)"

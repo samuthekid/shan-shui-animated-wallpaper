@@ -8,3 +8,6 @@ signing/
 *.p8
 *.cer
 docs/
+*.xcodeproj/
+xcuserdata/
+DerivedData/

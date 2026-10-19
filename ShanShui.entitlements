@@ -4,8 +4,6 @@
 <dict>
   <key>com.apple.security.app-sandbox</key><true/>
   <key>com.apple.security.files.user-selected.read-write</key><true/>
-  <!-- Replace TEAMID_HERE with the team ID in the provisioning profile. Do not guess it. -->
-  <key>com.apple.application-identifier</key><string>TEAMID_HERE.com.samuapps.shanshui</string>
-  <key>com.apple.developer.team-identifier</key><string>TEAMID_HERE</string>
+  <!-- Xcode adds the application and team identifiers from the signing profile. -->
 </dict>
 </plist>
