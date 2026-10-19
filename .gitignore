@@ -1,0 +1,10 @@
+build/
+dist/
+.DS_Store
+signing/
+*.provisionprofile
+*.mobileprovision
+*.p12
+*.p8
+*.cer
+docs/
