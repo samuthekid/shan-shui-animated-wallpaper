@@ -38,7 +38,9 @@ final class Landscape {
         let win = NSWindow(contentRect: frame, styleMask: wallpaper ? .borderless : [.titled], backing: .buffered, defer: false)
         win.level = level
         if wallpaper {
-            win.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+            // Not .stationary: the window then slides with each Space page, so Mission Control and Space swipes keep the
+            // native black gap (a stationary window covered it and left a visible seam).
+            win.collectionBehavior = [.canJoinAllSpaces, .ignoresCycle]
             win.ignoresMouseEvents = true
         }
         win.isReleasedWhenClosed = false  // the landscape owns it

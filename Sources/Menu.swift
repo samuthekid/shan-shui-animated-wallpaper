@@ -48,7 +48,16 @@ extension Wallpaper {
         alert.addButton(withTitle: "This Space")
         guard alert.runModal() == .alertSecondButtonReturn else { return }
         do {
-            for s in NSScreen.screens { try NSWorkspace.shared.setDesktopImageURL(url, for: s, options: [:]) }
+            // Copy the picture out of the app first, so it survives a rebuild, move or delete of the app.
+            // One copy for every Space (each Space is applied separately), so we never delete it.
+            // ponytail: if a future version ships a different picture, change this file name.
+            let fm = FileManager.default
+            let dir = try fm.url(for: .applicationSupportDirectory, in: .userDomainMask, appropriateFor: nil, create: true)
+                .appendingPathComponent("ShanShui")
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+            let copy = dir.appendingPathComponent("background-4k.jpg")
+            if !fm.fileExists(atPath: copy.path) { try fm.copyItem(at: url, to: copy) }
+            for s in NSScreen.screens { try NSWorkspace.shared.setDesktopImageURL(copy, for: s, options: [:]) }
         } catch {
             say("The desktop picture could not be changed.", error.localizedDescription)
         }
