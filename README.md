@@ -38,3 +38,7 @@ Test flags (on `build/ShanShui.app/Contents/MacOS/ShanShui`): `--window [--windo
 ## Credits
 
 The landscape generator is [shan-shui-inf](https://github.com/LingDong-/shan-shui-inf) by LingDong- (MIT, [license](vendor/shan-shui-inf/LICENSE)), in `vendor/`.
+
+## License
+
+MIT. The bundled landscape generator keeps its own MIT license (see Credits).
