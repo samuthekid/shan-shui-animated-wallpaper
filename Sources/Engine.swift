@@ -6,6 +6,16 @@ import QuartzCore
 // One engine for all screens: one JavaScriptCore context (generator.js + the scripts of upstream), one queue.
 // Each screen is a World in it.
 
+// malloc_zone_pressure_relief(nil, 0) skips the JavaScriptCore zone (WebKit Malloc), so ask every zone.
+func relieveMallocPressure() {
+    var zones: UnsafeMutablePointer<vm_address_t>?
+    var count: UInt32 = 0
+    guard malloc_get_all_zones(mach_task_self_, nil, &zones, &count) == KERN_SUCCESS, let zones else { return }
+    for i in 0..<Int(count) {
+        _ = malloc_zone_pressure_relief(UnsafeMutablePointer<malloc_zone_t>(bitPattern: UInt(zones[i])), 0)
+    }
+}
+
 extension Notification.Name {
     static let generatorFailed = Notification.Name("shanshui.generatorFailed")  // userInfo["reason"]
 }
@@ -173,7 +183,7 @@ final class Engine: @unchecked Sendable {
             busy = false
             if dirty {
                 dirty = false
-                _ = malloc_zone_pressure_relief(nil, 0)
+                relieveMallocPressure()
             }
             return
         }
@@ -257,7 +267,7 @@ final class Engine: @unchecked Sendable {
     // Upstream builders make a lot of garbage. Free pages from the last round go back to the system first
     // (the collection runs some time after the request), then JavaScriptCore is asked to collect.
     func collect() {
-        _ = malloc_zone_pressure_relief(nil, 0)
+        relieveMallocPressure()
         if let c = ss?.context { JSGarbageCollect(c.jsGlobalContextRef) }
     }
 

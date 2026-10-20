@@ -132,7 +132,7 @@ extension Wallpaper {
         DispatchQueue.global(qos: .utility).async {
             let capture = engine.q.sync { engine.exportTiles(id: id, u: u, geo: geo) }
             let error = writePNG(capture, to: url)
-            _ = malloc_zone_pressure_relief(nil, 0)  // the screen-size bitmap is freed by now
+            relieveMallocPressure()  // the screen-size bitmap is freed by now
             guard let message = error else { return }
             DispatchQueue.main.async {
                 NSLog("ShanShui export failed: %@", message)

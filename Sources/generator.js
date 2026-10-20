@@ -32,7 +32,7 @@ var SS = (() => {
         const m = String(v).match(/[\d.]+/g);  // "rgba(100,100,100,0.5)" -> 100 100 100 0.5. "none" -> null.
         c = m && m.length >= 3 ? ((+m[0] * 256 + +m[1]) * 256 + +m[2]) * 256 + Math.round((m.length > 3 ? +m[3] : 1) * 255) : 0;
       }
-      if (colors.size > 50000) colors.clear();
+      if (colors.size > 5000) colors.clear();
       colors.set(v, c);
     }
     return c;
