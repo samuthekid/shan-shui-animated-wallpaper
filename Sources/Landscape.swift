@@ -22,14 +22,13 @@ final class Landscape {
     var started = false  // the window is hidden until the first screen and the lead are ready, see checkReady()
     var running = false  // pan and generation are on. Starts with the window.
     var stopped = false
-    var paused = false  // the menu item Pause. Same effect as a covered window (setRunning), only the reason differs.
+    var paused = false { didSet { if started { setRunning(!paused) } } }  // the menu item Pause. It is the only reason to stop.
     var replaced: Landscape?  // the landscape of the same screen before a change: it stays until this one is shown
     var speed: Double  // the pan speed (slider), points per second. Constant: nothing slows the pan.
     var baseN = 0.0, baseF = 0.0  // world x at x = 0 of the near and far box. Moves forward from time to time: small floats.
     var rangeN: ClosedRange<Int> = 0...0
     var rangeF: ClosedRange<Int> = 0...0
     var timer: Timer?
-    var observer: NSObjectProtocol?
 
     // The window of a landscape. The wallpaper window is borderless, click-through, on all spaces, at the desktop
     // level (desktop icons stay above it). The test window is a normal titled window at the given level.
@@ -68,11 +67,6 @@ final class Landscape {
             box.position = .zero
             box.bounds = CGRect(origin: .zero, size: size)
             root.addSublayer(box)
-        }
-        observer = NotificationCenter.default.addObserver(
-            forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.visibilityChanged() }
         }
         engine.register(id: id, geo: g, density: density) { [weak self] isNear, k, surface in
             self?.place(near: isNear, k: k, surface: surface)
@@ -130,10 +124,6 @@ final class Landscape {
         box.add(a, forKey: "pan")
     }
 
-    func visibilityChanged() {
-        if started { setRunning(!paused && window.occlusionState.contains(.visible)) }
-    }
-
     // Every wanted tile is there (first screen plus lead): show the window with a fade. Until then the normal
     // desktop wallpaper (or the old landscape of this screen) stays visible. The pan starts now.
     func checkReady() {
@@ -147,7 +137,7 @@ final class Landscape {
         NSAnimationContext.current.duration = 1
         window.animator().alphaValue = 1
         NSAnimationContext.endGrouping()
-        visibilityChanged()  // a wallpaper that starts covered must pause
+        if paused { setRunning(false) }  // a screen that comes while paused is drawn once, then stops
         if let old = replaced {
             // this landscape fades in above the old one of the same screen. When it is solid, the old one goes.
             replaced = nil
@@ -155,7 +145,7 @@ final class Landscape {
         }
     }
 
-    // Not visible (covered, display asleep, screen locked): no animation, no generation, no timer.
+    // Paused: no animation, no generation, no timer. A covered window does not stop it.
     func setRunning(_ r: Bool) {
         if r == running { return }
         repan(running: r)
@@ -267,7 +257,6 @@ final class Landscape {
         stopped = true
         timer?.invalidate()
         timer = nil
-        if let o = observer { NotificationCenter.default.removeObserver(o) }
         engine.unregister(id: id)
         replaced?.stop()
         replaced = nil

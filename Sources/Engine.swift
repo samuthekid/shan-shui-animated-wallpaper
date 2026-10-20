@@ -45,7 +45,7 @@ final class World {
     let deliver: @MainActor (Bool, Int, IOSurface) -> Void  // called on the main thread with a finished tile
     let near = Lane(near: true), far = Lane(near: false)
     var density: Double
-    var active = true     // false while the screen is not visible
+    var active = true     // false while the screen is paused
     var broken = false    // JavaScript gave no answer: no more work
     var u = 0.0           // where the view is (near units), for the lead
     var failures = 0, blockedUntil = 0.0  // a tile that fails is tried again later

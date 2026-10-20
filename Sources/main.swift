@@ -77,11 +77,12 @@ final class Wallpaper: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     // Pause stops the pan, the timer and the engine work of every screen (Landscape.setRunning). The frame stays.
+    // It is the only thing that stops the animation: a window that covers the wallpaper does not.
     // Resume goes on from the same place. A new screen while paused is drawn once, then stops.
     @objc func togglePause(_ sender: NSMenuItem) {
         paused.toggle()
         sender.title = paused ? "Resume" : "Pause"
-        landscapes.values.forEach { $0.paused = paused; $0.visibilityChanged() }
+        landscapes.values.forEach { $0.paused = paused }
     }
 
     @objc func speedChanged(_ s: NSSlider) { applySpeed(s.doubleValue) }
@@ -149,7 +150,7 @@ final class Wallpaper: NSObject, NSApplicationDelegate, NSMenuDelegate {
         nextWorld += 1
         let land = Landscape(engine: engine, id: nextWorld, window: win, scale: screen.backingScaleFactor,
                              frame: screen.frame, speed: Settings.speed, density: Settings.density)
-        land.paused = paused  // a screen that comes while paused starts stopped (checkReady calls visibilityChanged)
+        land.paused = paused  // a screen that comes while paused starts stopped (checkReady stops it)
         win.setFrame(screen.frame, display: false)
         return land
     }
