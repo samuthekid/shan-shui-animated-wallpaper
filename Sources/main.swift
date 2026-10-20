@@ -33,6 +33,8 @@ final class Wallpaper: NSObject, NSApplicationDelegate, NSMenuDelegate {
     var nextWorld = 0
     var syncTimer: Timer?
     var paused = false  // not saved: the app always starts running
+    var systemHolds = Set<String>()  // screen lock, display sleep, system sleep. Any one pauses. The menu and `paused` do not change.
+    var systemPaused: Bool { !systemHolds.isEmpty }
     var sweepStep = 0  // for --sweep (Debug.swift)
     let launched = Date()
 
@@ -40,6 +42,24 @@ final class Wallpaper: NSObject, NSApplicationDelegate, NSMenuDelegate {
         UserDefaults.standard.register(defaults: ["speed": 15.0, "density": 1.0])
         NSApp.setActivationPolicy(.accessory)
         item.button?.title = "山水"
+        // There is no public constant for the lock notifications, so the names are strings.
+        let dnc = DistributedNotificationCenter.default(), wsc = NSWorkspace.shared.notificationCenter
+        // One hold per reason: a wake while the screen is still locked must not resume.
+        for (c, name, hold, pause) in [
+            (dnc, Notification.Name("com.apple.screenIsLocked"), "lock", true),
+            (dnc, Notification.Name("com.apple.screenIsUnlocked"), "lock", false),
+            (wsc, NSWorkspace.willSleepNotification, "sleep", true),
+            (wsc, NSWorkspace.didWakeNotification, "sleep", false),
+            (wsc, NSWorkspace.screensDidSleepNotification, "screens", true),
+            (wsc, NSWorkspace.screensDidWakeNotification, "screens", false),
+        ] as [(NotificationCenter, Notification.Name, String, Bool)] {
+            c.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    if pause { self?.systemHolds.insert(hold) } else { self?.systemHolds.remove(hold) }
+                    self?.applyPause()
+                }
+            }
+        }
         item.menu = makeMenu()
         engine.start()
         NotificationCenter.default.addObserver(
@@ -82,8 +102,10 @@ final class Wallpaper: NSObject, NSApplicationDelegate, NSMenuDelegate {
     @objc func togglePause(_ sender: NSMenuItem) {
         paused.toggle()
         sender.title = paused ? "Resume" : "Pause"
-        landscapes.values.forEach { $0.paused = paused }
+        applyPause()
     }
+
+    func applyPause() { landscapes.values.forEach { $0.paused = paused || systemPaused } }
 
     @objc func speedChanged(_ s: NSSlider) { applySpeed(s.doubleValue) }
     @objc func densityChanged(_ s: NSSlider) { applyDensity(s.doubleValue) }
@@ -150,7 +172,7 @@ final class Wallpaper: NSObject, NSApplicationDelegate, NSMenuDelegate {
         nextWorld += 1
         let land = Landscape(engine: engine, id: nextWorld, window: win, scale: screen.backingScaleFactor,
                              frame: screen.frame, speed: Settings.speed, density: Settings.density)
-        land.paused = paused  // a screen that comes while paused starts stopped (checkReady stops it)
+        land.paused = paused || systemPaused  // a screen that comes while paused starts stopped (checkReady stops it)
         win.setFrame(screen.frame, display: false)
         return land
     }
