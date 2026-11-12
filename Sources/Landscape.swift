@@ -29,6 +29,8 @@ final class Landscape {
     var rangeN: ClosedRange<Int> = 0...0
     var rangeF: ClosedRange<Int> = 0...0
     var timer: Timer?
+    var held = false  // the window is hidden by the window server: the pan stands still, so it does not jump when the window is back
+    var occlusionObserver: NSObjectProtocol?
 
     // The window of a landscape. The wallpaper window is borderless, click-through, on all spaces, at the desktop
     // level (desktop icons stay above it). The test window is a normal titled window at the given level.
@@ -74,6 +76,11 @@ final class Landscape {
         repan()
         tick()
         scheduleTimer()
+        if !window.styleMask.contains(.titled) {  // not for test windows
+            occlusionObserver = NotificationCenter.default.addObserver(forName: NSWindow.didChangeOcclusionStateNotification, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { if let self { self.hold(!self.window.occlusionState.contains(.visible)) } }
+            }
+        }
     }
 
     func scheduleTimer() {
@@ -83,7 +90,7 @@ final class Landscape {
         timer?.tolerance = 0.5
     }
 
-    func currentU(_ now: Double = CACurrentMediaTime()) -> Double { running ? u + speed / geo.sPts * (now - t0) : u }
+    func currentU(_ now: Double = CACurrentMediaTime()) -> Double { running && !held ? u + speed / geo.sPts * (now - t0) : u }
 
     // The only place that starts the pans. u is moved to this moment under the old speed, then the speed or the
     // running state changes, then the animations start with beginTime = this same moment. So the model (u, t0) and
@@ -110,7 +117,7 @@ final class Landscape {
         var b = box.bounds
         b.origin.x = CGFloat(from)
         box.bounds = b
-        guard running && rate > 0 else { return }
+        guard running && !held && rate > 0 else { return }
         // The animation is K.panLength long. tick() restarts it (rebase) when the box has moved K.rebaseDistance from the
         // base, so at least 10000 points (166 s at the top speed) are left. A pause removes it.
         let length = K.panLength
@@ -145,7 +152,18 @@ final class Landscape {
         }
     }
 
-    // Paused: no animation, no generation, no timer. A covered window does not stop it.
+    // The window server hides the window (alt-tab and similar) or shows it again. Only the pan stops, so it does not
+    // jump when the window is back: tiles and timer go on.
+    func hold(_ h: Bool) {
+        if h == held { return }
+        let now = CACurrentMediaTime()
+        u = currentU(now)
+        t0 = now
+        held = h
+        repan()
+    }
+
+    // Paused: no animation, no generation, no timer. A window hidden by the window server only holds the pan (hold).
     func setRunning(_ r: Bool) {
         if r == running { return }
         repan(running: r)
@@ -257,6 +275,8 @@ final class Landscape {
         stopped = true
         timer?.invalidate()
         timer = nil
+        if let o = occlusionObserver { NotificationCenter.default.removeObserver(o) }
+        occlusionObserver = nil
         engine.unregister(id: id)
         replaced?.stop()
         replaced = nil
